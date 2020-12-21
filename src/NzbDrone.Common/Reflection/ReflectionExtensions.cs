@@ -7,17 +7,15 @@ namespace NzbDrone.Common.Reflection
 {
     public static class ReflectionExtensions
     {
-        public static readonly Assembly CoreAssembly = Assembly.Load("Lidarr.Core");
-
         public static List<PropertyInfo> GetSimpleProperties(this Type type)
         {
             var properties = type.GetProperties();
             return properties.Where(c => c.PropertyType.IsSimpleType()).ToList();
         }
 
-        public static List<Type> ImplementationsOf<T>(this Assembly assembly)
+        public static List<Type> ImplementationsOf<T>()
         {
-            return assembly.GetTypes().Where(c => typeof(T).IsAssignableFrom(c)).ToList();
+            return GetAllTypes().Where(c => typeof(T).IsAssignableFrom(c)).ToList();
         }
 
         public static bool IsSimpleType(this Type type)
@@ -64,6 +62,30 @@ namespace NzbDrone.Common.Reflection
             where T : Attribute
         {
             return member.GetCustomAttributes(typeof(T), false).OfType<T>().ToArray();
+        }
+
+        public static Type FindTypeByName(string name)
+        {
+            return GetAllTypes()
+                .SingleOrDefault(x => x.Name.Equals(name, StringComparison.InvariantCultureIgnoreCase));
+        }
+
+        private static IEnumerable<Type> GetAllTypes()
+        {
+            return AppDomain.CurrentDomain.GetAssemblies()
+                .Where(x => ShouldUseAssembly(x))
+                .SelectMany(x => x.GetTypes());
+        }
+
+        private static bool ShouldUseAssembly(Assembly assembly)
+        {
+            if (assembly.IsDynamic)
+            {
+                return false;
+            }
+
+            var name = assembly.GetName();
+            return name.Name == "Lidarr.Core" || name.Name.Contains("Lidarr.Plugin");
         }
 
         public static Type FindTypeByName(this Assembly assembly, string name)

@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Linq;
 using NzbDrone.Common.Cache;
 using NzbDrone.Common.Extensions;
+using NzbDrone.Core.Indexers;
 
 namespace NzbDrone.Core.Profiles.Delay
 {
@@ -13,6 +14,7 @@ namespace NzbDrone.Core.Profiles.Delay
         void Delete(int id);
         List<DelayProfile> All();
         DelayProfile Get(int id);
+        DelayProfile GetDefaultProfile();
         List<DelayProfile> AllForTag(int tagId);
         List<DelayProfile> AllForTags(HashSet<int> tagIds);
         DelayProfile BestForTags(HashSet<int> tagIds);
@@ -23,10 +25,14 @@ namespace NzbDrone.Core.Profiles.Delay
     {
         private readonly IDelayProfileRepository _repo;
         private readonly ICached<DelayProfile> _bestForTagsCache;
+        private readonly List<IDownloadProtocol> _downloadProtocols;
 
-        public DelayProfileService(IDelayProfileRepository repo, ICacheManager cacheManager)
+        public DelayProfileService(IDelayProfileRepository repo,
+                                   IEnumerable<IDownloadProtocol> downloadProtocols,
+                                   ICacheManager cacheManager)
         {
             _repo = repo;
+            _downloadProtocols = downloadProtocols.ToList();
             _bestForTagsCache = cacheManager.GetCache<DelayProfile>(GetType(), "best");
         }
 
@@ -75,6 +81,23 @@ namespace NzbDrone.Core.Profiles.Delay
         public DelayProfile Get(int id)
         {
             return _repo.Get(id);
+        }
+
+        public DelayProfile GetDefaultProfile()
+        {
+            var standardTypes = new[] { typeof(UsenetDownloadProtocol), typeof(TorrentDownloadProtocol) };
+
+            var others = _downloadProtocols.Where(x => !standardTypes.Contains(x.GetType())).OrderBy(x => x.GetType().Name);
+
+            var result = new DelayProfile();
+            result.Items.AddRange(others.Select(x => new DelayProfileProtocolItem
+            {
+                Name = x.GetType().Name.Replace("DownloadProtocol", ""),
+                Protocol = x.GetType().Name,
+                Allowed = true
+            }));
+
+            return result;
         }
 
         public List<DelayProfile> AllForTag(int tagId)

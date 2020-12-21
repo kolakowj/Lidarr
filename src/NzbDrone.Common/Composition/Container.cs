@@ -8,9 +8,9 @@ namespace NzbDrone.Common.Composition
     public class Container : IContainer
     {
         private readonly TinyIoCContainer _container;
-        private readonly List<Type> _loadedTypes;
+        private readonly HashSet<Type> _loadedTypes;
 
-        public Container(TinyIoCContainer container, List<Type> loadedTypes)
+        public Container(TinyIoCContainer container, HashSet<Type> loadedTypes)
         {
             _container = container;
             _loadedTypes = loadedTypes;
@@ -41,18 +41,48 @@ namespace NzbDrone.Common.Composition
             return _container.Resolve(type);
         }
 
-        public void Register(Type serviceType, Type implementationType)
+        private void Register(Type serviceType, Type implementationType)
         {
             _container.Register(serviceType, implementationType);
         }
 
-        public void Register<TService>(Func<IContainer, TService> factory)
+        private void Register<TService>(Func<IContainer, TService> factory)
             where TService : class
         {
             _container.Register((c, n) => factory(this));
         }
 
-        public void RegisterSingleton(Type service, Type implementation)
+        public void AutoRegisterImplementations(Type contractType)
+        {
+            var implementations = GetImplementations(contractType)
+                .Where(c => !c.IsGenericTypeDefinition)
+                .ToList();
+
+            if (implementations.Count == 0)
+            {
+                return;
+            }
+
+            if (implementations.Count == 1)
+            {
+                var impl = implementations.Single();
+                RegisterSingleton(contractType, impl);
+            }
+            else
+            {
+                RegisterAllAsSingleton(contractType, implementations);
+            }
+        }
+
+        public void AutoRegisterPluginImplementations(Type contractType, IEnumerable<Type> implementationList)
+        {
+            _loadedTypes.Add(contractType);
+            _loadedTypes.UnionWith(implementationList);
+
+            AutoRegisterImplementations(contractType);
+        }
+
+        private void RegisterSingleton(Type service, Type implementation)
         {
             var factory = CreateSingletonImplementationFactory(implementation);
 
@@ -76,7 +106,7 @@ namespace NzbDrone.Common.Composition
             return _container.ResolveAll<T>();
         }
 
-        public void RegisterAllAsSingleton(Type service, IEnumerable<Type> implementationList)
+        private void RegisterAllAsSingleton(Type service, IEnumerable<Type> implementationList)
         {
             foreach (var implementation in implementationList)
             {
@@ -103,11 +133,15 @@ namespace NzbDrone.Common.Composition
 
         public IEnumerable<Type> GetImplementations(Type contractType)
         {
-            return _loadedTypes
-                .Where(implementation =>
-                       contractType.IsAssignableFrom(implementation) &&
-                       !implementation.IsInterface &&
-                       !implementation.IsAbstract);
+            return GetImplementations(_loadedTypes, contractType);
+        }
+
+        public static IEnumerable<Type> GetImplementations(IEnumerable<Type> types, Type contractType)
+        {
+            return types.Where(implementation =>
+                               contractType.IsAssignableFrom(implementation) &&
+                               !implementation.IsInterface &&
+                               !implementation.IsAbstract);
         }
     }
 }

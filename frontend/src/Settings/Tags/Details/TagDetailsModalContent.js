@@ -25,6 +25,8 @@ function TagDetailsModalContent(props) {
     onDeleteTagPress
   } = props;
 
+  console.log(delayProfiles);
+
   return (
     <ModalContent onModalClose={onModalClose}>
       <ModalHeader>
@@ -59,21 +61,15 @@ function TagDetailsModalContent(props) {
                 delayProfiles.map((item) => {
                   const {
                     id,
-                    preferredProtocol,
-                    enableUsenet,
-                    enableTorrent,
-                    usenetDelay,
-                    torrentDelay
+                    name,
+                    items
                   } = item;
 
                   return (
                     <TagDetailsDelayProfile
                       key={id}
-                      preferredProtocol={preferredProtocol}
-                      enableUsenet={enableUsenet}
-                      enableTorrent={enableTorrent}
-                      usenetDelay={usenetDelay}
-                      torrentDelay={torrentDelay}
+                      name={name}
+                      items={items}
                     />
                   );
                 })
